@@ -31,6 +31,9 @@ jobs:
       - name: Validate python modules compile
         run: python -m py_compile shared/sql_repository.py
 
+      - name: Validate Azure Functions structure
+        run: test -f host.json
+
       - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
         with:

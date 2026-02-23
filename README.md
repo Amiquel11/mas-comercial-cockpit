@@ -14,6 +14,8 @@ The workflow deploys using `publish-profile` (`AZURE_FUNCTIONAPP_PUBLISH_PROFILE
 
 If deployment fails, regenerate the Function App publish profile in Azure Portal and update the
 repository secret.
+
+For Azure Functions deployment, `host.json` must exist at the project root so package validation succeeds.
 # mas-commercial-cockpit
 
 Base inicial del repositorio para ingesta comercial desde Pipedrive, persistencia en Azure SQL y consumo en Power BI.
