@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'src/ingestion'
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -24,15 +24,18 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
+        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Validate python modules compile
-        run: python -m py_compile shared/sql_repository.py
+        run: python -m py_compile ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/shared/sql_repository.py
 
       - name: Validate Azure Functions structure
-        run: test -f host.json
+        run: |
+          test -f ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/host.json
+          test -f ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/function_app.py
 
       - name: Upload artifact for deployment
         uses: actions/upload-artifact@v4
@@ -51,6 +54,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-app
+          path: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
 
       - name: Deploy to Azure Functions (publish profile)
         uses: Azure/functions-action@v1

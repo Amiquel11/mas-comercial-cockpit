@@ -1,3 +1,5 @@
+pymssql==2.2.11
+azure-functions==1.21.3
 azure-functions
 azure-identity
 azure-keyvault-secrets
