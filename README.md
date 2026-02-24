@@ -19,11 +19,3 @@ For successful deployment and function discovery:
 
 The workflow deploys using `publish-profile` (`AZURE_FUNCTIONAPP_PUBLISH_PROFILE`) instead of
 `azure/login` with subscription-based auth.
-
-
-Authentication in CI supports either publish profile secrets (`AZURE_FUNCTIONAPP_PUBLISH_PROFILE` or `AZUREAPPSERVICE_PUBLISHPROFILE`) or RBAC via `AZURE_CREDENTIALS` with `azure/login`.
-
-Also verify Function App settings in Azure:
-- `FUNCTIONS_WORKER_RUNTIME=python`
-- `AzureWebJobsStorage` configured
-If these are missing, deployment can succeed but no functions will be indexed in the portal.

@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "KEY_VAULT_URL": "https://<your-kv>.vault.azure.net/",
+    "PIPEDRIVE_BASE_URL": "https://api.pipedrive.com/v1",
+    "PIPEDRIVE_TOKEN_SECRET_NAME": "pipedrive-token",
+    "SQL_CONNECTION_SECRET_NAME": "sql-connection-string",
+    "SYNC_LOOKBACK_MINUTES": "30",
+    "TIMER_SCHEDULE": "0 */15 * * * *"
+  }
+}

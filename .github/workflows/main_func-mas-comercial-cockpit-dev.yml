@@ -30,12 +30,18 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Validate python modules compile
-        run: python -m py_compile ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/shared/sql_repository.py ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/function_app.py
+        run: python -m py_compile ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/shared/sql_repository.py
 
       - name: Validate Azure Functions structure
         run: |
           test -f ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/host.json
           test -f ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/function_app.py
+
+      - name: Upload artifact for deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
 
   deploy:
     runs-on: ubuntu-latest
@@ -44,48 +50,15 @@ jobs:
       name: Production
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Resolve authentication mode
-        id: auth
-        run: |
-          if [ -n "${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}" ] || [ -n "${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}" ]; then
-            echo "mode=publish_profile" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ secrets.AZURE_CREDENTIALS }}" ]; then
-            echo "mode=rbac" >> "$GITHUB_OUTPUT"
-          else
-            echo "No auth secret found. Configure one of: AZURE_FUNCTIONAPP_PUBLISH_PROFILE, AZUREAPPSERVICE_PUBLISHPROFILE, or AZURE_CREDENTIALS." >&2
-            exit 1
-          fi
-
-      - name: Resolve publish profile secret
-        id: publish_profile
-        if: steps.auth.outputs.mode == 'publish_profile'
-        run: |
-          if [ -n "${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}" ]; then
-            echo "value=${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Login to Azure (service principal)
-        if: steps.auth.outputs.mode == 'rbac'
-        uses: azure/login@v2
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          name: python-app
+          path: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
 
       - name: Deploy to Azure Functions (publish profile)
-        if: steps.auth.outputs.mode == 'publish_profile'
         uses: Azure/functions-action@v1
         with:
           app-name: 'func-mas-comercial-cockpit-dev'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          publish-profile: ${{ steps.publish_profile.outputs.value }}
-
-      - name: Deploy to Azure Functions (RBAC)
-        if: steps.auth.outputs.mode == 'rbac'
-        uses: Azure/functions-action@v1
-        with:
-          app-name: 'func-mas-comercial-cockpit-dev'
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
