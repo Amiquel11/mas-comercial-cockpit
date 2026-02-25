@@ -1,4 +1,8 @@
-name: Build and deploy Python project to Azure Function App - func-mas-comercial-cockpit-dev
+# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+# More info on Python, GitHub Actions, and Azure Functions: https://aka.ms/python-webapps-actions
+
+name: Build and deploy Python project to Azure Function App - func-mas-commercial-cockpit-dev
 
 on:
   push:
@@ -7,95 +11,75 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'src/ingestion'
-  PYTHON_VERSION: '3.11'
-  AZURE_FUNCTIONAPP_RESOURCE_GROUP: 'rg-mas-comercial-cockpit'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
+  PYTHON_VERSION: '3.11' # set this to the python version to use (supports 3.6, 3.7, 3.8)
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read #This is required for actions/checkout
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python version
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Create and start virtual environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+
       - name: Install dependencies
-        working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        run: pip install -r requirements.txt
 
-      - name: Validate python modules compile
-        run: python -m py_compile ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/shared/sql_repository.py ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/health/__init__.py ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/pipedrive_ingestion_timer/__init__.py
+      # Optional: Add step to run tests here
 
-      - name: Validate Azure Functions structure
-        run: |
-          test -f ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/host.json
-          test -f ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/health/function.json
-          test -f ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/pipedrive_ingestion_timer/function.json
+      - name: Zip artifact for deployment
+        run: zip release.zip ./* -r
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: |
+            release.zip
+            !venv/
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    environment:
-      name: Production
+    permissions:
+      id-token: write #This is required for requesting the JWT
+      contents: read #This is required for actions/checkout
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: python-app
 
-      - name: Resolve authentication mode
-        id: auth
+      - name: Unzip artifact for deployment
         run: |
-          if [ -n "${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}" ] || [ -n "${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}" ]; then
-            echo "mode=publish_profile" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ secrets.AZURE_CREDENTIALS }}" ]; then
-            echo "mode=rbac" >> "$GITHUB_OUTPUT"
-          else
-            echo "No auth secret found. Configure one of: AZURE_FUNCTIONAPP_PUBLISH_PROFILE, AZUREAPPSERVICE_PUBLISHPROFILE, or AZURE_CREDENTIALS." >&2
-            exit 1
-          fi
-
-      - name: Resolve publish profile secret
-        id: publish_profile
-        if: steps.auth.outputs.mode == 'publish_profile'
-        run: |
-          if [ -n "${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}" ]; then
-            echo "value=${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Login to Azure (service principal)
-        if: steps.auth.outputs.mode == 'rbac'
+          unzip release.zip
+          rm release.zip
+        
+      - name: Login to Azure
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_64723F0A09214DC6B196CC6F55C0B88D }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_917F66E81FAA4A87B658DD869031EF4F }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_A251D863F568413AB3A5850919ECF65D }}
 
-      - name: Deploy to Azure Functions (publish profile)
-        if: steps.auth.outputs.mode == 'publish_profile'
+      - name: 'Deploy to Azure Functions'
         uses: Azure/functions-action@v1
+        id: deploy-to-function
         with:
-          app-name: 'func-mas-comercial-cockpit-dev'
+          app-name: 'func-mas-commercial-cockpit-dev'
+          slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          publish-profile: ${{ steps.publish_profile.outputs.value }}
-
-      - name: Deploy to Azure Functions (RBAC)
-        if: steps.auth.outputs.mode == 'rbac'
-        uses: Azure/functions-action@v1
-        with:
-          app-name: 'func-mas-comercial-cockpit-dev'
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-
-      - name: Sync function triggers (RBAC)
-        if: steps.auth.outputs.mode == 'rbac'
-        run: az functionapp sync-functions --name func-mas-comercial-cockpit-dev --resource-group ${{ env.AZURE_FUNCTIONAPP_RESOURCE_GROUP }}
-
-      - name: List discovered functions (RBAC)
-        if: steps.auth.outputs.mode == 'rbac'
-        run: az functionapp function list --name func-mas-comercial-cockpit-dev --resource-group ${{ env.AZURE_FUNCTIONAPP_RESOURCE_GROUP }} --query "[].name" -o tsv
+          
